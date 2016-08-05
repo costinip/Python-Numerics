@@ -41,16 +41,24 @@ class SupervisedPCA(BaseEstimator, TransformerMixin):
     max_iter : int
         maximum number of iterations for arpack
         Default: None (optimal value will be chosen by arpack)
+    drop_negative_eigenvalues: bool, optional, default: False
+        If set to True, negative or null eigenvalues are dropped as well as the
+        associated eigenvectors.
     Attributes
     ----------
-    `lambdas_`, `alphas_`:
-        Eigenvalues and eigenvectors of the centered kernel matrix
+    `lambdas_`: (n_components,) np.ndarray
+        Array of eigenvalues of XKyX^t matrix stored by decreasing
+        order. Only eigenvalues >= 0 are conserved.
+        The number of components is at most equal to the rank of X.
+    `alphas_`: (n_inputs,n_components) np.ndarray
+        Array containing the eigenvectors associated with the eigenvalues
+        in lambdas stored by columns. It is the matrix of new basis vectors
+        coordinates in the original basis.
     """
 
     def __init__(self, n_components=None, kernel="linear", gamma=None, degree=3,
-                 coef0=1, fit_inverse_transform=False,
-                 eigen_solver='auto', tol=0, max_iter=None):
-
+                 coef0=1, fit_inverse_transform=False, eigen_solver='auto',
+                 tol=0, max_iter=None,drop_negative_eigenvalues=False):
 
         self.n_components = n_components
         self.kernel = kernel.lower()
@@ -62,7 +70,8 @@ class SupervisedPCA(BaseEstimator, TransformerMixin):
         self.tol = tol
         self.max_iter = max_iter
         self.centerer = KernelCenterer()
-
+        self._drop_negative_eigenvalues = drop_negative_eigenvalues
+        
     def transform(self, X):
         """
         Returns a new X, X_trans, based on previous self.fit() estimates
@@ -172,9 +181,10 @@ class SupervisedPCA(BaseEstimator, TransformerMixin):
         indices = self.lambdas_.argsort()[::-1]
         self.lambdas_ = self.lambdas_[indices]
         self.alphas_ = self.alphas_[:, indices]
-        #remove the zero/negative eigenvalues
-        self.alphas_ = self.alphas_[:, self.lambdas_ > 0 ]
-        self.lambdas_ = self.lambdas_[ self.lambdas_ > 0 ]
+        if self._drop_negative_eigenvalues:
+            #remove the zero/negative eigenvalues
+            self.alphas_ = self.alphas_[:, self.lambdas_ > 0 ]
+            self.lambdas_ = self.lambdas_[ self.lambdas_ > 0 ]
         return()
 
 
@@ -221,16 +231,26 @@ class KernelSupervisedPCA(BaseEstimator, TransformerMixin):
     max_iter : int
         maximum number of iterations for arpack
         Default: None (optimal value will be chosen by arpack)
+    drop_negative_eigenvalues: bool, optional, default: False
+        If set to True, negative or null eigenvalues are dropped as well as the
+        associated eigenvectors.
     Attributes
     ----------
-    `lambdas_`, `alphas_`:
-        Eigenvalues and eigenvectors of the centered kernel matrix
+    `lambdas_`: (n_components,) np.ndarray
+        Array of eigenvalues of XKyX^t matrix stored by decreasing
+        order. Only eigenvalues >= 0 are conserved.
+        The number of components is at most equal to the rank of X.
+    `alphas_`: (n_inputs,n_components) np.ndarray
+        Array containing the eigenvectors associated with the eigenvalues
+        in lambdas stored by columns. It is the matrix of new basis vectors
+        coordinates in the original basis.
     """
 
     def __init__(self, n_components=None, xkernel={'kernel': "linear", 'gamma':0, 'degree':3,
                  'coef0':1}, ykernel = {'kernel': "linear", 'gamma':0, 'degree':3,
                  'coef0':1},  fit_inverse_transform=False,
-                 eigen_solver='auto', tol=0, max_iter=None):
+                 eigen_solver='auto', tol=0, max_iter=None,
+                 drop_negative_eigenvalues=False):
         self.n_components = n_components
         self.xkernel = xkernel
         self.ykernel = ykernel
@@ -239,7 +259,7 @@ class KernelSupervisedPCA(BaseEstimator, TransformerMixin):
         self.tol = tol
         self.max_iter = max_iter
         self.centerer = KernelCenterer()
-
+        self._drop_negative_eigenvalues = drop_negative_eigenvalues
 
     def transform(self, X):
         """
@@ -324,9 +344,10 @@ class KernelSupervisedPCA(BaseEstimator, TransformerMixin):
         self.lambdas_ = self.lambdas_[indices]
         self.alphas_ = self.alphas_[:, indices]
 
-        #remove the zero/negative eigenvalues
-        self.alphas_ = self.alphas_[:, self.lambdas_ > 0 ]
-        self.lambdas_ = self.lambdas_[ self.lambdas_ > 0 ]
+        if self._drop_negative_eigenvalues:
+            #remove the zero/negative eigenvalues
+            self.alphas_ = self.alphas_[:, self.lambdas_ > 0 ]
+            self.lambdas_ = self.lambdas_[ self.lambdas_ > 0 ]
         return()
 
     def _get_kernel(self, X, params, Y=None):
